@@ -126,13 +126,42 @@ def hex_rgba(hex_color, alpha=0.15):
 @st.cache_data
 def load_data():
     try:
-        users  = pd.read_csv("data/users.csv")
-        events = pd.read_csv("data/events.csv")
-        orders = pd.read_csv("data/orders.csv")
+        users_dtypes = {
+            'user_id':            'str',
+            'age':                'int16',
+            'city':               'category',
+            'city_tier':          'category',
+            'platform':           'category',
+            'acquisition_channel':'category',
+            'is_zomato_gold':     'bool',
+            'onboarding_cohort':  'category',
+            'user_type':          'category',
+        }
+        events_dtypes = {
+            'event_id':        'str',
+            'session_id':      'str',
+            'user_id':         'str',
+            'event_name':      'category',
+            'platform':        'category',
+            'weather_at_time': 'category',
+            'surge_active':    'boolean',
+        }
+        orders_dtypes = {
+            'order_id':           'str',
+            'user_id':            'str',
+            'amount_inr':         'float32',
+            'delivery_fee':       'float32',
+            'promo_applied':      'category',
+            'delivery_time_mins': 'int16',
+            'order_status':       'category',
+        }
 
-        users['signup_date'] = pd.to_datetime(users['signup_date'])
-        events['event_time'] = pd.to_datetime(events['event_time'])
-        orders['order_time'] = pd.to_datetime(orders['order_time'])
+        users  = pd.read_csv("data/users.csv",  dtype=users_dtypes,
+                             parse_dates=['signup_date'])
+        events = pd.read_csv("data/events.csv", dtype=events_dtypes,
+                             parse_dates=['event_time'])
+        orders = pd.read_csv("data/orders.csv", dtype=orders_dtypes,
+                             parse_dates=['order_time'])
 
         pay_ev = (
             events[events['event_name'] == 'payment_success']
@@ -164,6 +193,7 @@ def load_data():
     except FileNotFoundError:
         st.error("  Data files not found in `data/`. Run the simulation API first to generate CSVs.")
         st.stop()
+
 
 df_users, df_events, df_orders, df_merged_events, df_merged_orders = load_data()
 
