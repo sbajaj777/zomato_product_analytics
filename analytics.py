@@ -1,4 +1,5 @@
 import streamlit as st
+import gc
 import pandas as pd
 import numpy as np
 import plotly.express as px
@@ -138,7 +139,6 @@ def load_data():
             'user_type':          'category',
         }
         events_dtypes = {
-            'event_id':        'str',
             'session_id':      'str',
             'user_id':         'str',
             'event_name':      'category',
@@ -158,8 +158,10 @@ def load_data():
 
         users  = pd.read_csv("data/users.csv",  dtype=users_dtypes,
                              parse_dates=['signup_date'])
+        # Drop event_id (not used in any chart, saves ~15MB)
         events = pd.read_csv("data/events.csv", dtype=events_dtypes,
-                             parse_dates=['event_time'])
+                             parse_dates=['event_time'],
+                             usecols=lambda c: c != 'event_id')
         orders = pd.read_csv("data/orders.csv", dtype=orders_dtypes,
                              parse_dates=['order_time'])
 
@@ -169,6 +171,7 @@ def load_data():
             .copy().sort_values('event_time').reset_index(drop=True)
         )
         orders_s = orders.sort_values('order_time').reset_index(drop=True)
+        del orders
 
         if len(pay_ev) > 0 and len(orders_s) > 0:
             enriched = pd.merge_asof(
@@ -181,24 +184,31 @@ def load_data():
             enriched = orders_s.copy()
             enriched['weather_at_time'] = np.nan
             enriched['surge_active']    = np.nan
+        del orders_s, pay_ev
 
-        ov_e = [c for c in events.columns  if c in users.columns and c != 'user_id']
-        ov_o = [c for c in enriched.columns if c in users.columns and c != 'user_id']
+        # Only join minimal user cols to events (saves merging all user cols × 297K rows)
+        users_slim = users[['user_id', 'signup_date', 'acquisition_channel',
+                             'is_zomato_gold', 'onboarding_cohort']]
+        ov_e = [c for c in events.columns  if c in users_slim.columns and c != 'user_id']
+        ov_o = [c for c in enriched.columns if c in users.columns     and c != 'user_id']
 
-        merged_events = pd.merge(events.drop(columns=ov_e),   users, on='user_id', how='left')
-        merged_orders = pd.merge(enriched.drop(columns=ov_o), users, on='user_id', how='left')
+        merged_events = pd.merge(events.drop(columns=ov_e),   users_slim, on='user_id', how='left')
+        merged_orders = pd.merge(enriched.drop(columns=ov_o), users,      on='user_id', how='left')
 
-        return users, events, orders, merged_events, merged_orders
+        del events, enriched, users_slim
+        gc.collect()
+
+        return users, merged_events, merged_orders
 
     except FileNotFoundError:
         st.error("  Data files not found in `data/`. Run the simulation API first to generate CSVs.")
         st.stop()
 
 
-df_users, df_events, df_orders, df_merged_events, df_merged_orders = load_data()
+df_users, df_merged_events, df_merged_orders = load_data()
 
-min_dt = df_events['event_time'].min().strftime('%b %Y')
-max_dt = df_events['event_time'].max().strftime('%b %Y')
+min_dt = df_merged_events['event_time'].min().strftime('%b %Y')
+max_dt = df_merged_events['event_time'].max().strftime('%b %Y')
 
 st.markdown(f"""
     <div style="padding-top:6px;">
@@ -224,8 +234,8 @@ st.markdown("""
 with st.expander("Segment Filters", expanded=False):
     c1, c2, c3, c4 = st.columns(4)
 
-    min_date = df_events['event_time'].min().date()
-    max_date = df_events['event_time'].max().date()
+    min_date = df_merged_events['event_time'].min().date()
+    max_date = df_merged_events['event_time'].max().date()
     date_rng = c1.date_input("Date range", value=(min_date, max_date),
                              min_value=min_date, max_value=max_date, key="d_global")
 
