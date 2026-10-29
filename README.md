@@ -4,7 +4,7 @@ A product analytics project built on a synthetic simulation of Zomato's food del
 
 **Author**: Shivam Bajaj
 
-dashboard - https://sbajaj777-zomato-product-analytics-analytics.streamlit.app/
+dashboard - https://zomatoappuctanalytics-mwneimkxn9fmixlkvgclqs.streamlit.app/
 ---
 
 ## Table of Contents
